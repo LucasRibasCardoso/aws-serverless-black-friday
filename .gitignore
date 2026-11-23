@@ -1,0 +1,19 @@
+.DS_Store
+node_modules/
+dist/
+.env
+.env.*
+!.env.example
+.aws-sam/
+.bin/
+reports/
+*.zip
+
+# Terraform
+.terraform/
+.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+crash.log
