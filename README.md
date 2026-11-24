@@ -2,8 +2,6 @@
 
 Simulador de e-commerce serverless projetado para suportar picos de carga, de 1 milhão de pedidos por minuto, estilo Black Friday — da ingestão de milhares de requisições por segundo até a baixa transacional e idempotente de estoque, com **zero perda de pedidos** e **DLQ zerada**.
 
-> **Contexto & Transparência:** Este projeto foi implementado durante o workshop **DevOps na Nuvem**. O objetivo prático deste laboratório foi **arquitetar, provisionar, integrar, dimensionar, ajustar limites e diagnosticar toda a infraestrutura na AWS** — demonstrando na prática como os conceitos da certificação **AWS Certified Solutions Architect – Associate (SAA-C03)** se traduzem em decisões de engenharia no mundo real.
-
 ![Arquitetura principal de ingestão e processamento serverless na AWS](static/main-architecture.gif)
 
 ---
@@ -35,7 +33,13 @@ Neste laboratório, em vez de alterar o código da aplicação, alteramos **excl
 
 ## Arquitetura da Solução
 
-A arquitetura separa claramente o **plano de controle** (iniciar testes e consultar histórico), o **caminho de ingestão** (aceitar pedidos rapidamente direto na fila) e o **caminho de processamento** (drenar a fila em paralelo e abater estoque de forma transacional).
+A arquitetura separa claramente o **plano de controle e frontend** (entregar o painel, iniciar testes, disparar carga e consultar métricas), o **caminho de ingestão** (aceitar pedidos rapidamente direto na fila) e o **caminho de processamento** (drenar a fila em paralelo e abater estoque de forma transacional).
+
+### Frontend, Plano de Controle e Geração de Carga
+
+Enquanto o diagrama no topo ilustra o fluxo crítico de ingestão e processamento de pedidos (`/orders`), o diagrama abaixo mostra como o painel web é entregue via **CloudFront + S3 (OAC)** e como o plano de controle (`/runs`) orquestra os workers concorrentes de carga:
+
+![Arquitetura de frontend, plano de controle e geração de carga na AWS](static/control-architecture.gif)
 
 ### Fluxo ponta a ponta
 
@@ -88,7 +92,7 @@ Em arquitetura de soluções não existe "bala de prata" — toda escolha envolv
 
 ## Matemática de Capacidade e Escala
 
-Um dos grandes aprendizados práticos do workshop é **fazer a conta de capacidade antes de disparar a carga**:
+Em arquiteturas serverless de alta escala, é fundamental **fazer a conta de capacidade antes de disparar a carga**:
 
 - **Custo de escrita por transação no DynamoDB:** Um lote cheio com 10 pedidos executa `TransactWriteItems` com **11 itens** (10 `Put` de marcadores de idempotência + 1 `Update` no shard de estoque). Como cada item em transação consome **2 WRUs**, um lote cheio custa **22 WRUs** → média de **2,2 WRU/pedido**.
 - **Teto teórico com a configuração de referência:**
@@ -132,7 +136,7 @@ npm --prefix backend test
 npm --prefix backend run build
 ```
 
-Para gerar os pacotes `.zip` das três Lambdas (ex.: no macOS, conforme o roteiro):
+Para gerar os pacotes `.zip` das três Lambdas (ex.: no macOS):
 
 ```bash
 cd backend && npm prune --omit=dev && cd dist
