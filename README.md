@@ -4,6 +4,8 @@ Simulador de e-commerce serverless projetado para suportar picos de carga, de 1 
 
 > **Contexto & Transparência:** Este projeto foi implementado durante o workshop **DevOps na Nuvem**. O objetivo prático deste laboratório foi **arquitetar, provisionar, integrar, dimensionar, ajustar limites e diagnosticar toda a infraestrutura na AWS** — demonstrando na prática como os conceitos da certificação **AWS Certified Solutions Architect – Associate (SAA-C03)** se traduzem em decisões de engenharia no mundo real.
 
+![Arquitetura principal de ingestão e processamento serverless na AWS](static/main-architecture.gif)
+
 ---
 
 ## Sumário
@@ -11,8 +13,7 @@ Simulador de e-commerce serverless projetado para suportar picos de carga, de 1 
 - [Visão Geral do Desafio](#visão-geral-do-desafio)
 - [Arquitetura da Solução](#arquitetura-da-solução)
 - [Serviços AWS e Configurações-Chave](#serviços-aws-e-configurações-chave)
-- [AWS Solutions Architect Associate (SAA-C03) na Prática](#aws-solutions-architect-associate-saa-c03-na-prática)
-- [Decisões Arquiteturais e Trade-offs](#decisões-arquiteturais-e-trade-offs)
+- [Decisões Técnicas](#decisões-técnicas)
 - [Matemática de Capacidade e Escala](#matemática-de-capacidade-e-escala)
 - [Dashboard e Evidências de Execução](#dashboard-e-evidências-de-execução)
 - [Como Executar Localmente e Testar](#como-executar-localmente-e-testar)
@@ -35,55 +36,6 @@ Neste laboratório, em vez de alterar o código da aplicação, alteramos **excl
 ## Arquitetura da Solução
 
 A arquitetura separa claramente o **plano de controle** (iniciar testes e consultar histórico), o **caminho de ingestão** (aceitar pedidos rapidamente direto na fila) e o **caminho de processamento** (drenar a fila em paralelo e abater estoque de forma transacional).
-
-```mermaid
-flowchart TB
-    subgraph Edge["Frontend & Edge"]
-        User["Usuário / Navegador"]
-        CF["Amazon CloudFront<br/>(HTTPS + OAC)"]
-        S3["Amazon S3<br/>(Bucket Privado - SPA React)"]
-    end
-
-    subgraph Control["Plano de Controle"]
-        APICtrl["API Gateway REST<br/>POST /runs · GET /runs"]
-        LambdaCtrl["Lambda Control<br/>(Orquestração e Relatórios)"]
-        LambdaGen["Lambdas Generator<br/>(Até 100 workers paralelos)"]
-    end
-
-    subgraph Ingest["Caminho de Ingestão (Zero-Lambda)"]
-        APIOrders["API Gateway REST Regional<br/>POST /orders · POST /orders/batch<br/>(JSON Schema + VTL Mapping)"]
-        SQS["Amazon SQS FIFO<br/>(High Throughput · 1.024 grupos)"]
-    end
-
-    subgraph Process["Processamento & Persistência"]
-        LambdaProc["Lambda Processor<br/>(Event Source Mapping · Batch 10<br/>ReportBatchItemFailures · Max Conc. 128)"]
-        DLQ["Amazon SQS FIFO DLQ<br/>(Redrive após 20 tentativas)"]
-        DDB["Amazon DynamoDB<br/>(Single-Table · On-Demand + Warm Throughput<br/>1.024 Shards · TransactWriteItems · TTL)"]
-    end
-
-    subgraph Obs["Observabilidade"]
-        CW["Amazon CloudWatch<br/>(Métricas & Logs Estruturados)"]
-    end
-
-    User --> CF --> S3
-    User -->|"x-api-key"| APICtrl
-    APICtrl -->|"Lambda Proxy"| LambdaCtrl
-    LambdaCtrl -->|"Inicializa 1.024 shards + meta"| DDB
-    LambdaCtrl -.->|"Invocação Assíncrona"| LambdaGen
-
-    LambdaGen -->|"HTTP POST (single/batch)"| APIOrders
-    APIOrders -->|"Integração Direta AWS Service<br/>SendMessage / SendMessageBatch"| SQS
-
-    SQS -->|"Polling em paralelo por MessageGroupId"| LambdaProc
-    SQS -.->|"MaxReceiveCount = 20"| DLQ
-    LambdaProc -->|"TransactWriteItems<br/>(Marcadores + Estoque)"| DDB
-
-    LambdaCtrl -.->|"GetQueueAttributes"| SQS
-    LambdaCtrl -.->|"GetQueueAttributes"| DLQ
-    LambdaProc -.-> CW
-    APIOrders -.-> CW
-    DDB -.-> CW
-```
 
 ### Fluxo ponta a ponta
 
@@ -112,49 +64,25 @@ flowchart TB
 
 ---
 
-## AWS Solutions Architect Associate (SAA-C03) na Prática
+## Decisões Técnicas
 
-Cada decisão técnica do laboratório mapeia diretamente para os **quatro domínios oficiais do exame SAA-C03**:
-
-### 1. Design Secure Architectures (Segurança)
-- **Proteção de origem estática (S3 + CloudFront OAC):** O bucket S3 permanece totalmente privado com *Block Public Access* ativado; apenas a distribuição CloudFront específica tem permissão `s3:GetObject` via *Bucket Policy* condicionada ao `AWS:SourceArn`.
-- **IAM Least Privilege:** Cada Lambda possui uma Execution Role dedicada com permissões estritas apenas nas ações e recursos necessários (por exemplo, a `Generator` só tem `dynamodb:PutItem`; a role do API Gateway só tem `sqs:SendMessage` no ARN da fila principal, que também autoriza `SendMessageBatch`).
-- **Validação na borda e criptografia em repouso:** *Request Validation* com JSON Schema (`Order` e `OrderBatch`) rejeita requisições malformadas no API Gateway antes mesmo de acionar serviços internos. Dados em repouso protegidos com SSE-S3 e SSE-SQS, e tráfego forçado via HTTPS.
-
-### 2. Design Resilient Architectures (Resiliência)
-- **Queue-Based Load Leveling:** O SQS FIFO desacopla a taxa de entrada (pico de até 16.667 pedidos/s) da taxa de consumo do banco de dados, evitando falhas em cascata.
-- **Visibility Timeout calibrado (`6 ×` timeout da Lambda):** Configurado em **180 s** para uma Lambda Processor com timeout de **30 s**, seguindo a recomendação oficial da AWS para dar margem a retries em caso de throttling sem causar reentrega prematura.
-- **Tratamento de falhas parciais (`ReportBatchItemFailures`):** Se a 4ª mensagem de um lote de 10 falhar no DynamoDB, a Processor retorna a 4ª e todas as seguintes em `batchItemFailures`. O SQS remove com segurança as 3 primeiras já processadas e preserva a ordem FIFO das restantes.
-- **Idempotência ponta a ponta:** Combinação de `MessageDeduplicationId = orderId` no SQS FIFO (janela de 5 min) + marcadores persistentes no DynamoDB com `ConditionExpression: attribute_not_exists(pk)` e *optimistic locking* (`#remaining = :expected`) dentro da mesma `TransactWriteItems`. Mesmo que uma mensagem seja reentregue após 5 minutos, o estoque jamais é descontado duas vezes.
-- **Dead-Letter Queue (DLQ):** Mensagens que excedem 20 tentativas vão para a DLQ FIFO para inspeção e reprocessamento controlado, sem travar a fila principal.
-
-### 3. Design High-Performing Architectures (Performance)
-- **Storage-First / Service Integration (API Gateway → SQS sem Lambda):** Remover a Lambda da rota de ingestão elimina *cold starts*, reduz latência, corta custos e preserva a quota regional de concorrência Lambda da conta para os workers e consumidoras.
-- **High Throughput FIFO:** Ativar `DeduplicationScope = messageGroup` e `FifoThroughputLimit = perMessageGroupId` quebra o limite padrão de 300 msg/s da fila FIFO e escala o throughput proporcionalmente aos **1.024 `MessageGroupId`s**.
-- **Batching no produtor e no consumidor:** Enviar até 10 pedidos do mesmo shard por chamada (`SendMessageBatch`) reduz em ~10× o número de requisições no API Gateway (~100 mil chamadas HTTP para 1 milhão de pedidos) e maximiza o aproveitamento dos lotes de 10 na Processor.
-- **Write Sharding no DynamoDB:** Em vez de um único item de estoque (limitado a ~1.000 WCU/s por partição física), o saldo é dividido em **1.024 itens com Partition Keys distintas** (`${runId}#SHARD#${shard}`), distribuindo a escrita por múltiplas partições físicas.
-- **DynamoDB Warm Throughput:** Pré-aquece a tabela On-Demand antes de testes massivos para suportar picos instantâneos no segundo zero, sem aguardar o tempo de *partition splitting* sob demanda.
-
-### 4. Design Cost-Optimized Architectures (Otimização de Custos)
-- **Serverless *Pay-per-Use*:** Custo próximo de zero quando não há testes rodando, sem instâncias EC2 ou clusters de banco ociosos.
-- **DynamoDB TTL (Time to Live):** Itens temporários de teste (metadados, shards, métricas de workers e marcadores de idempotência) expiram automaticamente após **7 dias** sem consumir unidades de escrita (WRU).
-- **Redução de invocações por Batching:** Agrupar 10 pedidos por chamada reduz drasticamente custos por requisição no API Gateway, SQS e Lambda.
-- **Governança de Warm Throughput:** Como aumentar o Warm Throughput do DynamoDB gera cobrança única e **não pode ser reduzido posteriormente**, os cenários didáticos de gargalo de banco utilizam o limite reversível `MaxWriteRequestUnits` (teto on-demand) em vez de alterar o warm da stack principal.
-
----
-
-## Decisões Arquiteturais e Trade-offs
-
-Em arquitetura de soluções não existe "bala de prata" — toda escolha envolve compromissos. Abaixo estão os principais trade-offs deste desenho:
+Em arquitetura de soluções não existe "bala de prata" — toda escolha envolve compromissos. Abaixo estão os principais trade-offs do desenho e os pilares complementares aplicados na infraestrutura:
 
 | Decisão | Alternativa Descartada | Por que escolhemos | Trade-off / O que abrimos mão |
 | :--- | :--- | :--- | :--- |
 | **API Gateway → SQS Direto (VTL)** | API Gateway → Lambda → SQS | Menor latência, zero *cold start*, menor custo e economia da quota de concorrência Lambda da conta durante picos. | Templates VTL são mais verbosos e difíceis de testar/depurar; a borda fica limitada a validações declarativas (JSON Schema), sem lógica de negócio complexa. |
-| **Processamento Assíncrono (`202 Accepted`)** | Baixa síncrona no checkout (`200 OK`) | Isola a experiência de entrada do ritmo do banco; absorve rajadas de 16.667 pedidos/s sem falhas em cascata. | **Consistência eventual** para o cliente: a confirmação definitiva de estoque acontece depois (na drenagem da fila), exigindo notificação/polling posterior em um e-commerce real. |
+| **Processamento Assíncrono (`202 Accepted`)** | Baixa síncrona no checkout (`200 OK`) | Isola a experiência de entrada do ritmo do banco; absorve rajadas de 16.667 pedidos/s sem falhas em cascata. | **Consistência eventual** para o cliente: a confirmação definitiva de estoque acontece na drenagem da fila, exigindo notificação/polling posterior em um e-commerce real. |
 | **SQS FIFO (High Throughput)** | SQS Standard | Garante ordem por shard (`runId-shard`), deduplicação nativa de 5 min e evita duas consumidoras disputando o mesmo registro de estoque ao mesmo tempo. | Custo unitário um pouco maior que Standard; exige modelar bem a cardinalidade de grupos (1.024) e implementar `ReportBatchItemFailures` respeitando a ordem do grupo. |
-| **Write Sharding (1.024 shards de estoque)** | Item único de estoque por produto | Permite ultrapassar o limite de 1.000 WCU/s por partição física do DynamoDB e habilita alto paralelismo nas consumidoras. | **Fragmentação de saldo:** um shard pode zerar enquanto outro ainda tem unidades (em produção, exige rebalanceamento ou *fallback* entre shards) e a leitura do saldo total exige consultar os 1.024 itens. |
-| **DynamoDB On-Demand + Warm Throughput** | Provisioned Capacity + Auto Scaling | Acompanha picos súbitos (0 → 16.000+ WRU/s) sem pagar por capacidade provisionada ociosa fora do evento. | Preço unitário por WRU/RRU mais alto em carga constante e previsível; aumento de Warm Throughput tem cobrança única e é irreversível. |
-| **Backpressure Controlado (`Max Concurrency` + teto 96 WRU/s)** | Deixar a Lambda escalar sem limite | Evita tempestade de *throttling* no DynamoDB, reduz retries e garante drenagem estável com **DLQ = 0**. | Aumenta o tempo total de drenagem da fila (~4 min 20 s para 1 milhão de pedidos com 128 concorrências). |
+| **Write Sharding (1.024 shards de estoque)** | Item único de estoque por produto | Permite ultrapassar o limite de 1.000 WCU/s por partição física do DynamoDB e habilita alto paralelismo nas consumidoras. | **Fragmentação de saldo:** um shard pode zerar enquanto outro ainda tem unidades (em produção, exige rebalanceamento ou *fallback*) e a leitura total consulta os 1.024 itens. |
+| **DynamoDB On-Demand + Warm Throughput** | Provisioned Capacity + Auto Scaling | Acompanha picos súbitos (0 → 16.000+ WRU/s) sem pagar por capacidade provisionada ociosa fora do evento. | Preço unitário por WRU/RRU mais alto em carga constante; aumento de Warm Throughput gera cobrança única e é irreversível. |
+| **Backpressure Controlado (`Max Concurrency` + teto 96 WRU/s)** | Deixar a Lambda escalar sem limite | Evita tempestade de *throttling* no DynamoDB, reduz retries e garante drenagem estável com **DLQ = 0**. | Aumenta o tempo total de drenagem da fila (~4 min 17 s para 1 milhão de pedidos com 128 concorrências). |
+
+### Pilares Complementares
+
+- **Segurança:** Bucket S3 privado com *Block Public Access* acessível apenas pelo CloudFront via **OAC** (`AWS:SourceArn`); **IAM Least Privilege** com roles dedicadas por função/serviço; validação de payload na borda (**JSON Schema**) e criptografia em trânsito (HTTPS) e em repouso (SSE-S3 / SSE-SQS).
+- **Resiliência e Idempotência:** `VisibilityTimeout` de **180 s** (`6 ×` timeout da Lambda de 30 s) para margem segura de retries; **`ReportBatchItemFailures`** para reprocessar apenas a partir da mensagem que falhou preservando a ordem FIFO; idempotência ponta a ponta combinando `MessageDeduplicationId` no SQS + marcadores condicionais (`attribute_not_exists`) e *optimistic locking* dentro da `TransactWriteItems`; **DLQ FIFO** após 20 tentativas.
+- **Performance:** **Batching 10×** no produtor (`SendMessageBatch` — ~100 mil chamadas HTTP para 1 milhão de pedidos) e no consumidor (`BatchSize = 10`), somado ao **High Throughput FIFO** (`perMessageGroupId`) escalando em paralelo pelos 1.024 grupos.
+- **Otimização de Custos:** Arquitetura 100% *pay-per-use* (custo próximo de zero ociosa), **DynamoDB TTL** de 7 dias para expirar dados de teste sem consumir WRU, e uso do limite reversível `MaxWriteRequestUnits` para simular gargalos sem alterar o Warm Throughput principal.
 
 ---
 
@@ -169,25 +97,24 @@ Um dos grandes aprendizados práticos do workshop é **fazer a conta de capacida
   - Teto teórico de consumo com lotes cheios: `12.288 ÷ 2,2 ≈ 5.585 (~5.600) pedidos/s`.
 - **Referência de escala (1.000.000 de pedidos em 60 s):**
   - 50 workers enviando em lote (`SendMessageBatch`) → **100.352 chamadas HTTP** na janela de 60 s (~16.667 pedidos/s de entrada).
-  - Resultado de referência: **1.000.000 aceitos**, **0 erros de envio**, **0 DLQ**, processamento concluído em **4 min 20 s**.
+  - Resultado obtido no laboratório: **1.000.000 aceitos**, **0 erros de envio**, **0 DLQ**, processamento concluído em **4 min 16,7 s** (P95 em **3 min 8,9 s** e P99 em **3 min 18,3 s**).
 
 ---
 
 ## Dashboard e Evidências de Execução
 
-O painel web (hospedado no **S3 + CloudFront**) permite configurar o cenário de carga, acompanhar a ingestão e a drenagem da fila em tempo real e consultar o histórico completo das execuções com latências P95 e P99.
+O painel web (hospedado no **S3 + CloudFront**) permite configurar o cenário de carga, acompanhar a ingestão e a drenagem da fila em tempo real, monitorar o abatimento do estoque e consultar o histórico completo das execuções com latências P95 e P99.
 
-### Execução de teste em tempo real (100.000 pedidos em 60 s)
+### Teste de carga: 1.000.000 de pedidos em 60 segundos
 
-Visualização da aba **Visão geral** ao final de um teste de **100.000 pedidos** enviados em lotes (`SendMessageBatch`, até 10 pedidos por chamada) com **0 erros no envio** e **100.000 pedidos processados**. No gráfico *O pulso da sua aplicação*, é possível observar o desacoplamento clássico do *Queue-Based Load Leveling*: a linha verde (**Aceitas na fila**) atinge os 100.000 pedidos rapidamente, enquanto a linha azul (**Processadas**) drena o estoque de forma constante e controlada.
+Evidência completa da execução de pico máximo (**1.000.000 de pedidos** em uma janela de **60 s** — taxa de **16.667 pedidos/s**, enviados via `SendMessageBatch` em **100.352 chamadas HTTP**):
 
-![Dashboard de execução do teste de carga com 100.000 pedidos aceitos e processados](static/dashboard-execucao.png)
+- **Ingestão e entrega:** `1.000.000` pedidos aceitos na fila, `0` erros no envio e `0` mensagens não enviadas.
+- **Processamento e consistência de estoque:** `1.000.000` pedidos processados, estoque zerado com exatidão (`0 / 1.000.000` disponíveis, `0` sem estoque) e **DLQ zerada (`0`)**.
+- **Desempenho e latência:** drenagem concluída em **4 min 16,7 s** (`256,7 s`), com **P95 de 3 min 8,9 s** e **P99 de 3 min 18,3 s** (100% dos 1.000.000 de pedidos medidos).
+- **Queue-Based Load Leveling em ação:** no gráfico *O pulso da sua aplicação*, a linha verde (**Aceitas na fila**) absorve o milhão de pedidos na janela de 60 s, enquanto a linha azul (**Processadas**) drena a fila de forma estável e controlada sem sobrecarregar o DynamoDB.
 
-### Histórico de processamentos
-
-Tabela de histórico consolidando métricas por execução — incluindo total enfileirado, falhas no envio, volume processado, tempo total de drenagem e percentis **P95** e **P99** por pedido (10.240 chamadas HTTP em lote para 100.000 pedidos, com 0 falhas).
-
-![Histórico de execuções exibindo métricas de processamento e percentis P95 e P99](static/historico-processamentos.png)
+![Dashboard completo do teste de carga de 1 milhão de pedidos aceitos e processados com zero erros e DLQ zerada](static/dashboard-teste-1kk.png)
 
 ---
 
