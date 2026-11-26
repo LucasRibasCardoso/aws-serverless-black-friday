@@ -1,0 +1,73 @@
+default_install_hook_types: [pre-commit]
+fail_fast: false
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+        args: [--markdown-linebreak-ext=md]
+      - id: end-of-file-fixer
+      - id: mixed-line-ending
+        args: [--fix=lf]
+      - id: check-merge-conflict
+      - id: check-yaml
+        args: [--allow-multiple-documents]
+      - id: check-json
+        exclude: tsconfig\.json$ # tsconfig aceita comentários (JSONC)
+      - id: check-added-large-files
+        args: [--maxkb=1024]
+        exclude: ^static/
+      - id: detect-private-key
+      - id: detect-aws-credentials
+        args: [--allow-missing-credentials]
+
+  # ---------------------------------------------------------------------------
+  # Segredos (chaves AWS, tokens, etc.) em qualquer arquivo
+  # ---------------------------------------------------------------------------
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.0
+    hooks:
+      - id: gitleaks
+
+  # ---------------------------------------------------------------------------
+  # Terraform
+  # ---------------------------------------------------------------------------
+  - repo: https://github.com/antonbabenko/pre-commit-terraform
+    rev: v1.109.5
+    hooks:
+      # Formatação canônica (o hook já roda por diretório alterado)
+      - id: terraform_fmt
+
+      # Mantém o .terraform.lock.hcl com hashes para Mac (dev) e Linux (CI)
+      - id: terraform_providers_lock
+        args:
+          - --hook-config=--mode=only-check-is-current-lockfile-cross-platform
+          - --args=-platform=darwin_arm64
+          - --args=-platform=linux_amd64
+
+      # Sintaxe e consistência interna (faz `init -backend=false` sozinho)
+      - id: terraform_validate
+        args:
+          - --hook-config=--retry-once-with-cleanup=true
+
+      # Lint: boas práticas, convenções de nome, tipos de instância inválidos,
+      # variáveis/outputs sem descrição, providers sem versão, etc.
+      - id: terraform_tflint
+        args:
+          - --args=--config=__GIT_WORKING_DIR__/.tflint.hcl
+
+      # Segurança/misconfiguração (sucessor do tfsec): S3 público,
+      # criptografia ausente, IAM com "*", logs desabilitados...
+      - id: terraform_trivy
+        args:
+          - --args=--severity=HIGH,CRITICAL
+          - --args=--skip-dirs="**/.terraform"
+
+      # Documentação automática (inputs/outputs/resources) nos módulos
+      - id: terraform_docs
+        files: ^infra/modules/
+        args:
+          - --hook-config=--path-to-file=README.md
+          - --hook-config=--add-to-existing-file=true
+          - --hook-config=--create-file-if-not-exist=true
