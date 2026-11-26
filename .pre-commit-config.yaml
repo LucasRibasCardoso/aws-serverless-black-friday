@@ -39,13 +39,6 @@ repos:
       # Formatação canônica (o hook já roda por diretório alterado)
       - id: terraform_fmt
 
-      # Mantém o .terraform.lock.hcl com hashes para Mac (dev) e Linux (CI)
-      - id: terraform_providers_lock
-        args:
-          - --hook-config=--mode=only-check-is-current-lockfile-cross-platform
-          - --args=-platform=darwin_arm64
-          - --args=-platform=linux_amd64
-
       # Sintaxe e consistência interna (faz `init -backend=false` sozinho)
       - id: terraform_validate
         args:
