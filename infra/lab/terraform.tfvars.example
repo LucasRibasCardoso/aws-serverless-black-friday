@@ -1,0 +1,7 @@
+# Copie para terraform.tfvars (ignorado pelo git) e ajuste se precisar.
+aws_region   = "us-east-1"
+project_name = "black-friday-lab"
+
+tags = {
+  Owner = "seu-nome"
+}

@@ -1,0 +1,8 @@
+# Copie para backend.hcl (ignorado pelo git) e preencha com os outputs do infra/bootstrap:
+#   bucket = state_bucket_name
+#   key    = state_key
+#   region = region
+
+bucket = "black-friday-lab-tfstate-<ACCOUNT_ID>-us-east-1"
+key    = "black-friday-lab/terraform.tfstate"
+region = "us-east-1"
