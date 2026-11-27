@@ -16,3 +16,16 @@ reports/
 *.tfvars
 !*.tfvars.example
 crash.log
+crash.*.log
+# Planos salvos (terraform plan -out=tfplan) podem conter valores sensíveis
+tfplan
+*.tfplan
+# Configuração parcial do backend (dados do bucket de state de cada um)
+backend.hcl
+!backend.hcl.example
+# Overrides locais
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+# O .terraform.lock.hcl DEVE ser versionado (fixa as versões dos providers)
