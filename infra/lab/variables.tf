@@ -30,3 +30,27 @@ variable "tags" {
     error_message = "As tags Project e ManagedBy são reservadas e definidas automaticamente."
   }
 }
+
+# DynamoDB
+
+variable "dynamodb_max_read_request_units" {
+  description = "Limite máximo de RRUs/s (Read Request Units) configurado na tabela DynamoDB em modo On-Demand."
+  type        = number
+  default     = 12000
+
+  validation {
+    condition     = var.dynamodb_max_read_request_units >= 1 && floor(var.dynamodb_max_read_request_units) == var.dynamodb_max_read_request_units
+    error_message = "dynamodb_max_read_request_units deve ser um número inteiro maior ou igual a 1."
+  }
+}
+
+variable "dynamodb_max_write_request_units" {
+  description = "Limite máximo de WRUs/s (Write Request Units) configurado na tabela DynamoDB em modo On-Demand."
+  type        = number
+  default     = 4000
+
+  validation {
+    condition     = var.dynamodb_max_write_request_units >= 1 && floor(var.dynamodb_max_write_request_units) == var.dynamodb_max_write_request_units
+    error_message = "dynamodb_max_write_request_units deve ser um número inteiro maior ou igual a 1."
+  }
+}

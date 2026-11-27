@@ -5,3 +5,7 @@ project_name = "black-friday-lab"
 tags = {
   Owner = "seu-nome"
 }
+
+# DynamoDB (limites de throughput On-Demand, em RRUs/s e WRUs/s)
+dynamodb_max_read_request_units  = 12000
+dynamodb_max_write_request_units = 4000

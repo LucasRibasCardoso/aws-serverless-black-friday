@@ -12,3 +12,15 @@ output "name_prefix" {
   description = "Prefixo usado no nome de todos os recursos."
   value       = local.name_prefix
 }
+
+# DynamoDB
+
+output "dynamodb_table_name" {
+  description = "Nome da tabela DynamoDB Single-Table do laboratório."
+  value       = aws_dynamodb_table.this.name
+}
+
+output "dynamodb_table_arn" {
+  description = "ARN da tabela DynamoDB Single-Table do laboratório."
+  value       = aws_dynamodb_table.this.arn
+}
