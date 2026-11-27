@@ -24,3 +24,25 @@ output "dynamodb_table_arn" {
   description = "ARN da tabela DynamoDB Single-Table do laboratório."
   value       = aws_dynamodb_table.this.arn
 }
+
+# SQS
+
+output "sqs_order_queue_url" {
+  description = "URL da fila SQS FIFO principal de pedidos."
+  value       = aws_sqs_queue.order.url
+}
+
+output "sqs_order_queue_arn" {
+  description = "ARN da fila SQS FIFO principal de pedidos."
+  value       = aws_sqs_queue.order.arn
+}
+
+output "sqs_order_dlq_url" {
+  description = "URL da Dead-Letter Queue (DLQ) FIFO de pedidos."
+  value       = aws_sqs_queue.order_dlq.url
+}
+
+output "sqs_order_dlq_arn" {
+  description = "ARN da Dead-Letter Queue (DLQ) FIFO de pedidos."
+  value       = aws_sqs_queue.order_dlq.arn
+}

@@ -54,3 +54,27 @@ variable "dynamodb_max_write_request_units" {
     error_message = "dynamodb_max_write_request_units deve ser um número inteiro maior ou igual a 1."
   }
 }
+
+# SQS
+
+variable "sqs_message_visibility_timeout_seconds" {
+  description = "Tempo máximo durante o qual o processamento de uma mensagem deve ser concluído antes que a mensagem se torne disponível para outros consumidores."
+  type        = number
+  default     = 180 # 3 minutos
+
+  validation {
+    condition     = var.sqs_message_visibility_timeout_seconds >= 0 && var.sqs_message_visibility_timeout_seconds <= 43200 && floor(var.sqs_message_visibility_timeout_seconds) == var.sqs_message_visibility_timeout_seconds
+    error_message = "sqs_message_visibility_timeout_seconds deve ser um número inteiro entre 0 e 43200."
+  }
+}
+
+variable "sqs_max_receive_count" {
+  description = "Número máximo de recebimentos de uma mensagem antes de ser redirecionada para a DLQ."
+  type        = number
+  default     = 3
+
+  validation {
+    condition     = var.sqs_max_receive_count >= 1 && var.sqs_max_receive_count <= 1000 && floor(var.sqs_max_receive_count) == var.sqs_max_receive_count
+    error_message = "sqs_max_receive_count deve ser um número inteiro entre 1 e 1000."
+  }
+}

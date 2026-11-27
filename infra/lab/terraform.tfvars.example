@@ -9,3 +9,7 @@ tags = {
 # DynamoDB (limites de throughput On-Demand, em RRUs/s e WRUs/s)
 dynamodb_max_read_request_units  = 12000
 dynamodb_max_write_request_units = 4000
+
+# SQS FIFO
+sqs_message_visibility_timeout_seconds = 180
+sqs_max_receive_count                  = 3
