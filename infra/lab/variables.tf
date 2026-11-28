@@ -71,7 +71,7 @@ variable "sqs_message_visibility_timeout_seconds" {
 variable "sqs_max_receive_count" {
   description = "Número máximo de recebimentos de uma mensagem antes de ser redirecionada para a DLQ."
   type        = number
-  default     = 3
+  default     = 20
 
   validation {
     condition     = var.sqs_max_receive_count >= 1 && var.sqs_max_receive_count <= 1000 && floor(var.sqs_max_receive_count) == var.sqs_max_receive_count

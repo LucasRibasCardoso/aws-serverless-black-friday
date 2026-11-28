@@ -78,3 +78,30 @@ output "lambda_processor_arn" {
   description = "ARN da função Lambda Processor."
   value       = module.lambda_processor.arn
 }
+
+# Frontend (S3 + CloudFront)
+
+output "frontend_bucket_name" {
+  description = "Nome do bucket S3 privado que hospeda os arquivos estáticos do painel."
+  value       = aws_s3_bucket.frontend.id
+}
+
+output "frontend_bucket_arn" {
+  description = "ARN do bucket S3 privado do frontend."
+  value       = aws_s3_bucket.frontend.arn
+}
+
+output "cloudfront_distribution_id" {
+  description = "ID da distribuição CloudFront do frontend (usado para invalidação de cache)."
+  value       = aws_cloudfront_distribution.frontend.id
+}
+
+output "cloudfront_domain_name" {
+  description = "Domínio público da distribuição CloudFront do frontend."
+  value       = aws_cloudfront_distribution.frontend.domain_name
+}
+
+output "frontend_url" {
+  description = "URL HTTPS do painel publicado no CloudFront."
+  value       = "https://${aws_cloudfront_distribution.frontend.domain_name}"
+}
