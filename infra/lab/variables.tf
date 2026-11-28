@@ -78,3 +78,38 @@ variable "sqs_max_receive_count" {
     error_message = "sqs_max_receive_count deve ser um número inteiro entre 1 e 1000."
   }
 }
+
+# Lambda
+
+variable "lambda_log_retention_in_days" {
+  description = "Tempo de retenção dos logs das funções Lambda no CloudWatch Logs, em dias."
+  type        = number
+  default     = 7
+
+  validation {
+    condition     = contains([1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1096, 1827, 2192, 2557, 2922, 3288, 3653], var.lambda_log_retention_in_days)
+    error_message = "lambda_log_retention_in_days deve ser um período de retenção suportado pelo CloudWatch Logs (ex.: 1, 3, 5, 7, 14, 30, 60, 90)."
+  }
+}
+
+variable "lambda_processor_max_concurrency" {
+  description = "Concorrência máxima do Event Source Mapping entre a fila SQS FIFO e a Lambda Processor."
+  type        = number
+  default     = 128
+
+  validation {
+    condition     = var.lambda_processor_max_concurrency >= 2 && var.lambda_processor_max_concurrency <= 1000 && floor(var.lambda_processor_max_concurrency) == var.lambda_processor_max_concurrency
+    error_message = "lambda_processor_max_concurrency deve ser um número inteiro entre 2 e 1000."
+  }
+}
+
+variable "lambda_processor_batch_size" {
+  description = "Quantidade máxima de mensagens SQS FIFO entregues por lote à Lambda Processor."
+  type        = number
+  default     = 10
+
+  validation {
+    condition     = var.lambda_processor_batch_size >= 1 && var.lambda_processor_batch_size <= 10 && floor(var.lambda_processor_batch_size) == var.lambda_processor_batch_size
+    error_message = "lambda_processor_batch_size deve ser um número inteiro entre 1 e 10 (limite de filas SQS FIFO)."
+  }
+}

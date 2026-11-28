@@ -84,8 +84,14 @@ variable "environment_variables" {
   default     = {}
 }
 
+variable "attach_policy" {
+  description = "Indica se a política IAM extra (policy_json) deve ser anexada à role da função."
+  type        = bool
+  default     = false
+}
+
 variable "policy_json" {
-  description = "Documento JSON de política IAM inline com permissões adicionais (além dos logs no CloudWatch) para a role da função."
+  description = "Documento JSON de política IAM inline com permissões adicionais (além dos logs no CloudWatch) para a role da função. Usado quando attach_policy = true."
   type        = string
   default     = null
 }

@@ -42,7 +42,8 @@ module "lambda_processor" {
     TABLE_NAME = aws_dynamodb_table.this.name
   }
 
-  policy_json = data.aws_iam_policy_document.processor.json
+  attach_policy = true
+  policy_json   = data.aws_iam_policy_document.processor.json
 }
 ```
 
@@ -81,12 +82,13 @@ No modules.
 | Name | Description | Type | Default | Required |
 | ---- | ----------- | ---- | ------- | :------: |
 | <a name="input_architectures"></a> [architectures](#input\_architectures) | Arquitetura de CPU da função Lambda (arm64 ou x86\_64). | `list(string)` | <pre>[<br/>  "x86_64"<br/>]</pre> | no |
+| <a name="input_attach_policy"></a> [attach\_policy](#input\_attach\_policy) | Indica se a política IAM extra (policy\_json) deve ser anexada à role da função. | `bool` | `false` | no |
 | <a name="input_environment_variables"></a> [environment\_variables](#input\_environment\_variables) | Variáveis de ambiente injetadas na função Lambda. | `map(string)` | `{}` | no |
 | <a name="input_function_name"></a> [function\_name](#input\_function\_name) | Nome completo da função Lambda (usado também como base para a IAM Role e o Log Group). | `string` | n/a | yes |
 | <a name="input_handler"></a> [handler](#input\_handler) | Ponto de entrada (handler) da função Lambda (ex.: lambda-processor/processor.handler). | `string` | n/a | yes |
 | <a name="input_log_retention_in_days"></a> [log\_retention\_in\_days](#input\_log\_retention\_in\_days) | Tempo de retenção dos logs da função no CloudWatch Logs, em dias. | `number` | `7` | no |
 | <a name="input_memory_size"></a> [memory\_size](#input\_memory\_size) | Quantidade de memória alocada para a função Lambda, em MB. | `number` | `512` | no |
-| <a name="input_policy_json"></a> [policy\_json](#input\_policy\_json) | Documento JSON de política IAM inline com permissões adicionais (além dos logs no CloudWatch) para a role da função. | `string` | `null` | no |
+| <a name="input_policy_json"></a> [policy\_json](#input\_policy\_json) | Documento JSON de política IAM inline com permissões adicionais (além dos logs no CloudWatch) para a role da função. Usado quando attach\_policy = true. | `string` | `null` | no |
 | <a name="input_runtime"></a> [runtime](#input\_runtime) | Runtime utilizado pela função Lambda. | `string` | `"nodejs26.x"` | no |
 | <a name="input_source_code_hash"></a> [source\_code\_hash](#input\_source\_code\_hash) | Hash Base64 SHA-256 do pacote .zip (ex.: output\_base64sha256 de archive\_file). Se nulo, é calculado automaticamente a partir de source\_path. | `string` | `null` | no |
 | <a name="input_source_path"></a> [source\_path](#input\_source\_path) | Caminho local do arquivo .zip contendo o pacote da função Lambda. | `string` | n/a | yes |

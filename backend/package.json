@@ -17,6 +17,7 @@
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "build": "tsc -p tsconfig.json",
+    "bundle": "esbuild lambda-controller/control.ts lambda-generator/generator.ts lambda-processor/processor.ts --bundle --platform=node --target=node22 --format=esm --external:@aws-sdk/* --out-extension:.js=.mjs --outdir=dist/bundles",
     "test": "npm run build && node --test tests/*.test.mjs"
   }
 }

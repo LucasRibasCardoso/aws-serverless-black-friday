@@ -39,7 +39,7 @@ resource "aws_iam_role_policy" "cloudwatch_logs" {
 }
 
 resource "aws_iam_role_policy" "extra" {
-  count = var.policy_json != null ? 1 : 0
+  count = var.attach_policy ? 1 : 0
 
   name   = "${var.function_name}-policy"
   role   = aws_iam_role.this.id

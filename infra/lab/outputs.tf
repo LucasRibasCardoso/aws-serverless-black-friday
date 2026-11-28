@@ -46,3 +46,35 @@ output "sqs_order_dlq_arn" {
   description = "ARN da Dead-Letter Queue (DLQ) FIFO de pedidos."
   value       = aws_sqs_queue.order_dlq.arn
 }
+
+# Lambda
+
+output "lambda_controller_function_name" {
+  description = "Nome da função Lambda Controller."
+  value       = module.lambda_controller.function_name
+}
+
+output "lambda_controller_arn" {
+  description = "ARN da função Lambda Controller."
+  value       = module.lambda_controller.arn
+}
+
+output "lambda_generator_function_name" {
+  description = "Nome da função Lambda Generator."
+  value       = module.lambda_generator.function_name
+}
+
+output "lambda_generator_arn" {
+  description = "ARN da função Lambda Generator."
+  value       = module.lambda_generator.arn
+}
+
+output "lambda_processor_function_name" {
+  description = "Nome da função Lambda Processor."
+  value       = module.lambda_processor.function_name
+}
+
+output "lambda_processor_arn" {
+  description = "ARN da função Lambda Processor."
+  value       = module.lambda_processor.arn
+}

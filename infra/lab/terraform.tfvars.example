@@ -13,3 +13,8 @@ dynamodb_max_write_request_units = 4000
 # SQS FIFO
 sqs_message_visibility_timeout_seconds = 180
 sqs_max_receive_count                  = 3
+
+# Lambda
+lambda_log_retention_in_days     = 7
+lambda_processor_max_concurrency = 128
+lambda_processor_batch_size      = 10
